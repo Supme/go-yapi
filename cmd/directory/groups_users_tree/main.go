@@ -16,19 +16,10 @@ import (
 func main() {
 	var clientID, clientSecret, tokFile string
 
-	clientID = os.Getenv("CLIENT_ID")
-	clientSecret = os.Getenv("CLIENT_SECRET")
+	flag.StringVar(&clientID, "i", "", "Client ID")
+	flag.StringVar(&clientSecret, "s", "", "Client secret")
 	flag.StringVar(&tokFile, "f", ".token", "Token file")
-
-	if clientID == "" {
-		fmt.Println("Client ID required")
-		os.Exit(1)
-	}
-
-	if clientSecret == "" {
-		fmt.Println("Client secret required")
-		os.Exit(1)
-	}
+	flag.Parse()
 
 	ctx := context.Background()
 
@@ -41,8 +32,22 @@ func main() {
 
 	tok, err = yapi.TokenFromFile(tokFile)
 	if err != nil {
+		if clientID == "" {
+			if clientID = os.Getenv("CLIENT_ID"); clientID == "" {
+				fmt.Println("Client ID required")
+				os.Exit(1)
+			}
+		}
+
+		if clientSecret == "" {
+			if clientSecret = os.Getenv("CLIENT_SECRET"); clientSecret == "" {
+				fmt.Println("Client secret required")
+				os.Exit(1)
+			}
+		}
+
 		url := conf.AuthCodeURL("state", oauth2.AccessTypeOffline)
-		fmt.Printf("Visit the URL for the auth dialog: %v\n", url)
+		fmt.Printf("Visit the URL for the auth dialog:\n%s\nAnd enter code: ", url)
 
 		var code string
 		if _, err := fmt.Scan(&code); err != nil {
