@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -23,11 +24,11 @@ const VersionAPI = "v6"
 //           \/       \/     |__|        \/           \/
 
 // NewOauth2Config ...
-func NewOauth2Config(clientID, clientSecret string) *oauth2.Config {
+func NewOauth2Config(clientID, clientSecret string, scopes []string) *oauth2.Config {
 	return &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		Scopes:       []string{},
+		Scopes:       scopes,
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  "https://oauth.yandex.ru/authorize",
 			TokenURL: "https://oauth.yandex.ru/token",
@@ -38,8 +39,8 @@ func NewOauth2Config(clientID, clientSecret string) *oauth2.Config {
 type Parameters map[string][]string
 
 func (p Parameters) String() string {
-	pURL := &strings.Builder{}
 	if len(p) > 0 {
+		pURL := &strings.Builder{}
 		first := true
 		for k := range p {
 			if first {
@@ -54,8 +55,9 @@ func (p Parameters) String() string {
 			}
 			pURL.WriteString(k + "=" + strings.Join(d, ","))
 		}
+		return pURL.String()
 	}
-	return pURL.String()
+	return ""
 }
 
 // Get ...
@@ -64,13 +66,13 @@ func Get(client *http.Client, url string, params Parameters, header map[string]s
 }
 
 // Post ...
-func Post(client *http.Client, url string, params Parameters, header map[string]string, body io.Reader) error {
-	return Request(client, http.MethodDelete, url, params, header, http.StatusCreated, body, nil)
+func Post(client *http.Client, url string, params Parameters, header map[string]string, body io.Reader, v interface{}) error {
+	return Request(client, http.MethodPost, url, params, header, http.StatusCreated, body, v)
 }
 
 // Patch ...
-func Patch(client *http.Client, url string, params Parameters, header map[string]string, body io.Reader) error {
-	return Request(client, http.MethodDelete, url, params, header, http.StatusOK, body, nil)
+func Patch(client *http.Client, url string, params Parameters, header map[string]string, body io.Reader, v interface{}) error {
+	return Request(client, http.MethodPatch, url, params, header, http.StatusOK, body, v)
 }
 
 // Delete ...
@@ -101,11 +103,12 @@ func Request(client *http.Client, method, url string, params Parameters, header 
 		return errors.New(resp.Status)
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(v)
-	if err != nil {
-		return err
+	if v != nil {
+		err = json.NewDecoder(resp.Body).Decode(v)
+		if err != nil {
+			return err
+		}
 	}
-
 	return nil
 }
 
@@ -129,4 +132,16 @@ func TokenToFile(tokenFile string, token *oauth2.Token) error {
 	}
 	defer f.Close()
 	return gob.NewEncoder(f).Encode(*token)
+}
+
+func headerOrgID(id int) map[string]string {
+	if id > 0 {
+		return map[string]string{"X-Org-ID": strconv.Itoa(id)}
+	}
+	return map[string]string{}
+}
+
+func jsonParam(v interface{}) string {
+	s, _ := json.Marshal(v)
+	return string(s)
 }

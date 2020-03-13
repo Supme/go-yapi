@@ -2,8 +2,11 @@
 package go_yapi
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -27,42 +30,47 @@ func NewDirectory(client *http.Client) *Directory {
 //                 \/     \/           \/
 
 type DirectoryUser struct {
-	IsRobot     bool        `json:"is_robot"`
-	ExternalID  interface{} `json:"external_id"`
-	Position    string      `json:"position"`
-	Departments []struct {
-		ID int `json:"id"`
-	} `json:"departments"`
-	OrgID   int    `json:"org_id"`
-	Gender  string `json:"gender"`
-	Created string `json:"created"`
-	Name    struct {
-		First  string `json:"first"`
-		Last   string `json:"last"`
-		Middle string `json:"middle"`
-	} `json:"name"`
-	About    string `json:"about"`
-	Nickname string `json:"nickname"`
-	Groups   []struct {
-		ID int `json:"id"`
-	} `json:"groups"`
-	IsAdmin      bool   `json:"is_admin"`
-	Birthday     string `json:"birthday"`
-	DepartmentID int    `json:"department_id"`
-	Email        string `json:"email"`
-	Department   struct {
-		ID int `json:"id"`
-	} `json:"department"`
-	Contacts []struct {
-		Value     string `json:"value"`
-		Type      string `json:"type"`
-		Main      bool   `json:"main"`
-		Alias     bool   `json:"alias"`
-		Synthetic bool   `json:"synthetic"`
-	} `json:"contacts"`
-	Aliases     []string `json:"aliases"`
-	ID          int      `json:"id"`
-	IsDismissed bool     `json:"is_dismissed"`
+	IsRobot      bool                      `json:"is_robot,omitempty"`
+	ExternalID   interface{}               `json:"external_id,omitempty"`
+	Position     string                    `json:"position,omitempty"`
+	Departments  []DirectoryUserDepartment `json:"departments,omitempty"`
+	OrgID        int                       `json:"org_id,omitempty"`
+	Gender       string                    `json:"gender,omitempty"`
+	Created      string                    `json:"created,omitempty"`
+	Name         *DirectoryUserName        `json:"name,omitempty"`
+	About        string                    `json:"about,omitempty"`
+	Nickname     string                    `json:"nickname,omitempty"`
+	Groups       []DirectoryUserGroup      `json:"groups,omitempty"`
+	IsAdmin      bool                      `json:"is_admin,omitempty"`
+	Birthday     string                    `json:"birthday,omitempty"`
+	DepartmentID int                       `json:"department_id,omitempty"`
+	Email        string                    `json:"email,omitempty"`
+	Department   *DirectoryUserDepartment  `json:"department,omitempty"`
+	Contacts     []DirectoryUserContact    `json:"contacts,omitempty"`
+	Aliases      []string                  `json:"aliases,omitempty"`
+	ID           int                       `json:"id,omitempty"`
+	IsDismissed  bool                      `json:"is_dismissed,omitempty"`
+	Password     string                    `json:"password,omitempty"`
+}
+
+type directoryUserSliceID struct {
+	ID int `json:"id"`
+}
+type DirectoryUserDepartment directoryUserSliceID
+type DirectoryUserGroup directoryUserSliceID
+
+type DirectoryUserName struct {
+	First  string `json:"first,omitempty"`
+	Last   string `json:"last,omitempty"`
+	Middle string `json:"middle,omitempty"`
+}
+
+type DirectoryUserContact struct {
+	Value     string `json:"value,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Main      bool   `json:"main,omitempty"`
+	Alias     bool   `json:"alias,omitempty"`
+	Synthetic bool   `json:"synthetic,omitempty"`
 }
 
 type DirectoryUsers struct {
@@ -104,29 +112,76 @@ var DirectoryUserAllParameters = Parameters{
 }
 
 // GetUsers ...
-func (d Directory) GetUsers(orgID int, params Parameters) (*DirectoryUsers, error) {
+func (d Directory) GetUsers(orgID int, params Parameters) (DirectoryUsers, error) {
 	var users DirectoryUsers
 	err := Get(
 		d.client,
 		directoryURL+"/users/",
 		params,
-		map[string]string{"X-Org-ID": strconv.Itoa(orgID)},
+		headerOrgID(orgID),
 		&users,
 	)
-	return &users, err
+	return users, err
 }
 
 // GetUser ...
-func (d Directory) GetUser(orgID, userID int, params Parameters) (*DirectoryUser, error) {
+func (d Directory) GetUser(orgID, userID int, params Parameters) (DirectoryUser, error) {
 	var user DirectoryUser
 	err := Get(
 		d.client,
-		directoryURL+"/users/"+strconv.Itoa(userID),
+		directoryURL+"/users/"+strconv.Itoa(userID)+"/",
 		params,
-		map[string]string{"X-Org-ID": strconv.Itoa(orgID)},
+		headerOrgID(orgID),
 		&user,
 	)
-	return &user, err
+	return user, err
+}
+
+func (d Directory) CreateUser(orgID int, user *DirectoryUser) error {
+	j, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+
+	err = Post(
+		d.client,
+		directoryURL+"/users/",
+		nil,
+		headerOrgID(orgID),
+		bytes.NewReader(j),
+		&user,
+	)
+
+	return err
+}
+
+func (d Directory) ModifyUser(orgID, userID int, user *DirectoryUser) error {
+	j, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+
+	err = Patch(
+		d.client,
+		directoryURL+"/users/"+strconv.Itoa(userID)+"/",
+		nil,
+		headerOrgID(orgID),
+		bytes.NewReader(j),
+		&user,
+	)
+
+	return err
+}
+
+func (d Directory) AddAliasUser(orgID, userID int, alias string) error {
+	return Patch(
+		d.client,
+		directoryURL+"/users/"+strconv.Itoa(userID)+"/aliases/",
+		nil,
+		headerOrgID(orgID),
+		strings.NewReader(`{"name": `+jsonParam(alias)+`}`),
+		nil,
+	)
 }
 
 //    ________                              __                         __
@@ -137,35 +192,31 @@ func (d Directory) GetUser(orgID, userID int, params Parameters) (*DirectoryUser
 //            \/     \/|__|       \/                  \/     \/     \/          \/
 
 type DirectoryDepartment struct {
-	Name       string      `json:"name"`
-	Email      string      `json:"email"`
-	ExternalID interface{} `json:"external_id"`
-	Removed    bool        `json:"removed"`
-	ID         int         `json:"id"`
-	Parents    []struct {
-		Name         string      `json:"name"`
-		Email        string      `json:"email"`
-		ExternalID   interface{} `json:"external_id"`
-		Removed      bool        `json:"removed"`
-		ID           int         `json:"id"`
-		ParentID     int         `json:"parent_id"`
-		Label        string      `json:"label"`
-		Created      string      `json:"created"`
-		Description  string      `json:"description"`
-		MembersCount int         `json:"members_count"`
-	} `json:"parents"`
-	Label   string `json:"label"`
-	Created string `json:"created"`
-	Parent  struct {
-		Name       string      `json:"name"`
-		ID         int         `json:"id"`
-		ExternalID interface{} `json:"external_id"`
-		Removed    bool        `json:"removed"`
-		ParentID   int         `json:"parent_id"`
-	} `json:"parent"`
-	Description  string `json:"description"`
-	MembersCount int    `json:"members_count"`
-	Head         int    `json:"head"`
+	Name         string                      `json:"name,omitempty"`
+	Email        string                      `json:"email,omitempty"`
+	ExternalID   interface{}                 `json:"external_id,omitempty"`
+	Removed      bool                        `json:"removed,omitempty"`
+	ID           int                         `json:"id,omitempty"`
+	Parents      []DirectoryDepartmentParent `json:"parents,omitempty"`
+	Label        string                      `json:"label,omitempty"`
+	Created      string                      `json:"created,omitempty"`
+	Parent       DirectoryDepartmentParent   `json:"parent,omitempty"`
+	Description  string                      `json:"description,omitempty"`
+	MembersCount int                         `json:"members_count,omitempty"`
+	Head         int                         `json:"head,omitempty"`
+}
+
+type DirectoryDepartmentParent struct {
+	Name         string      `json:"name,omitempty"`
+	Email        string      `json:"email,omitempty"`
+	ExternalID   interface{} `json:"external_id,omitempty"`
+	Removed      bool        `json:"removed,omitempty"`
+	ID           int         `json:"id"`
+	ParentID     int         `json:"parent_id,omitempty"`
+	Label        string      `json:"label,omitempty"`
+	Created      string      `json:"created,omitempty"`
+	Description  string      `json:"description,omitempty"`
+	MembersCount int         `json:"members_count,omitempty"`
 }
 
 type DirectoryDepartments struct {
@@ -199,28 +250,84 @@ var DirectoryDepartmentAllParameters = Parameters{
 	},
 }
 
-func (d Directory) GetDepartments(orgID int, params Parameters) (*DirectoryDepartments, error) {
+// GetDepartments ...
+func (d Directory) GetDepartments(orgID int, params Parameters) (DirectoryDepartments, error) {
 	var departments DirectoryDepartments
 	err := Get(
 		d.client,
 		directoryURL+"/departments/",
 		params,
-		map[string]string{"X-Org-ID": strconv.Itoa(orgID)},
+		headerOrgID(orgID),
 		&departments,
 	)
-	return &departments, err
+	return departments, err
 }
 
-func (d Directory) GetDepartment(orgID, depID int, params Parameters) (*DirectoryDepartment, error) {
+// GetDepartment ...
+func (d Directory) GetDepartment(orgID, depID int, params Parameters) (DirectoryDepartment, error) {
 	var department DirectoryDepartment
 	err := Get(
 		d.client,
-		directoryURL+"/departments/"+strconv.Itoa(depID),
+		directoryURL+"/departments/"+strconv.Itoa(depID)+"/",
 		params,
-		map[string]string{"X-Org-ID": strconv.Itoa(orgID)},
+		headerOrgID(orgID),
 		&department,
 	)
-	return &department, err
+	return department, err
+}
+
+// CreateDepartment ...
+func (d Directory) CreateDepartment(orgID, parentID, headID int, name, label, description *string) (DirectoryDepartment, error) {
+	var department DirectoryDepartment
+	err := Post(
+		d.client,
+		directoryURL+"/departments/",
+		nil,
+		headerOrgID(orgID),
+		strings.NewReader(
+			`{`+
+				`"parent_id": `+jsonParam(parentID)+
+				`, "head_id": `+jsonParam(headID)+
+				`, "label": `+jsonParam(label)+
+				`, "name": `+jsonParam(name)+
+				`, "description": `+jsonParam(description)+
+				`}`,
+		),
+		&department,
+	)
+	return department, err
+}
+
+// ChangeDepartment ...
+func (d Directory) ChangeDepartment(orgID, depID, parentID, headID int, name, label, description *string) (DirectoryDepartment, error) {
+	var department DirectoryDepartment
+	err := Patch(
+		d.client,
+		directoryURL+"/departments/"+strconv.Itoa(depID)+"/",
+		nil,
+		headerOrgID(orgID),
+		strings.NewReader(
+			`{`+
+				`"parent_id": `+jsonParam(parentID)+
+				`, "head_id": `+jsonParam(headID)+
+				`, "label": `+jsonParam(label)+
+				`, "name": `+jsonParam(name)+
+				`, "description": `+jsonParam(description)+
+				`}`,
+		),
+		&department,
+	)
+	return department, err
+}
+
+// DeleteDepartment ...
+func (d Directory) DeleteDepartment(orgID, depID int) error {
+	return Delete(
+		d.client,
+		directoryURL+"/departments/"+strconv.Itoa(depID)+"/",
+		nil,
+		headerOrgID(orgID),
+	)
 }
 
 //      ________
@@ -231,19 +338,19 @@ func (d Directory) GetDepartment(orgID, depID int, params Parameters) (*Director
 //            \/                   |__|       \/
 
 type DirectoryGroup struct {
-	Name       string `json:"name"`
-	Email      string `json:"email"`
-	ExternalID string `json:"external_id"`
-	ID         int    `json:"id"`
+	Name       string `json:"name,omitempty"`
+	Email      string `json:"email,omitempty"`
+	ExternalID string `json:"external_id,omitempty"`
+	ID         int    `json:"id,omitempty"`
 	Members    []struct {
 		Type   string `json:"type"` // <user|group|department>
 		Object struct {
 			ID int `json:"id"`
 		} `json:"object"`
-	} `json:"members"`
-	Label   string `json:"label"`
-	Created string `json:"created"`
-	Type    string `json:"type"`
+	} `json:"members,omitempty"`
+	Label   string `json:"label,omitempty"`
+	Created string `json:"created,omitempty"`
+	Type    string `json:"type,omitempty"`
 	Admins  []struct {
 		Aliases      []string `json:"aliases"`
 		ID           int      `json:"id"`
@@ -253,7 +360,7 @@ type DirectoryGroup struct {
 		Position     string   `json:"position"`
 		Groups       []struct {
 			ID int `json:"id"`
-		} `json:"groups"`
+		} `json:"groups,omitempty"`
 		IsAdmin    bool   `json:"is_admin"`
 		Birthday   string `json:"birthday"`
 		Email      string `json:"email"`
@@ -272,7 +379,7 @@ type DirectoryGroup struct {
 			Middle string `json:"middle"`
 		} `json:"name"`
 		About string `json:"about"`
-	} `json:"admins"`
+	} `json:"admins,omitempty"`
 	Author struct {
 		Aliases      []string `json:"aliases"`
 		ID           int      `json:"id"`
@@ -301,10 +408,10 @@ type DirectoryGroup struct {
 			Middle string `json:"middle"`
 		} `json:"name"`
 		About string `json:"about"`
-	} `json:"author"`
-	Description  string `json:"description"`
-	MembersCount int    `json:"members_count"`
-	MemberOf     []int  `json:"member_of"`
+	} `json:"author,omitempty"`
+	Description  string `json:"description,omitempty"`
+	MembersCount int    `json:"members_count,omitempty"`
+	MemberOf     []int  `json:"member_of,omitempty"`
 }
 
 type DirectoryGroups struct {
@@ -355,28 +462,28 @@ var DirectoryGroupAllParameters = Parameters{
 	},
 }
 
-func (d Directory) GetGroups(orgID int, params Parameters) (*DirectoryGroups, error) {
+func (d Directory) GetGroups(orgID int, params Parameters) (DirectoryGroups, error) {
 	var groups DirectoryGroups
 	err := Get(
 		d.client,
 		directoryURL+"/groups/",
 		params,
-		map[string]string{"X-Org-ID": strconv.Itoa(orgID)},
+		headerOrgID(orgID),
 		&groups,
 	)
-	return &groups, err
+	return groups, err
 }
 
-func (d Directory) GetGroup(orgID, groupID int, params Parameters) (*DirectoryGroup, error) {
+func (d Directory) GetGroup(orgID, groupID int, params Parameters) (DirectoryGroup, error) {
 	var group DirectoryGroup
 	err := Get(
 		d.client,
 		directoryURL+"/groups/"+strconv.Itoa(groupID),
 		params,
-		map[string]string{"X-Org-ID": strconv.Itoa(orgID)},
+		headerOrgID(orgID),
 		&group,
 	)
-	return &group, err
+	return group, err
 }
 
 //    ________                        .__
@@ -420,7 +527,7 @@ func (d Directory) GetDomains(orgID int, params Parameters) ([]DirectoryDomain, 
 		d.client,
 		directoryURL+"/domains/",
 		params,
-		map[string]string{"X-Org-ID": strconv.Itoa(orgID)},
+		headerOrgID(orgID),
 		&domains,
 	)
 	return domains, err
@@ -484,7 +591,7 @@ var DirectoryOrganizationAllParameters = Parameters{
 }
 
 // GetOrganizations ...
-func (d Directory) GetOrganizations(params Parameters) (*DirectoryOrganizations, error) {
+func (d Directory) GetOrganizations(params Parameters) (DirectoryOrganizations, error) {
 	var organizations DirectoryOrganizations
 	err := Get(
 		d.client,
@@ -493,5 +600,5 @@ func (d Directory) GetOrganizations(params Parameters) (*DirectoryOrganizations,
 		nil,
 		&organizations,
 	)
-	return &organizations, err
+	return organizations, err
 }
