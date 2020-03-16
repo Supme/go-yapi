@@ -173,7 +173,7 @@ func printTable(directory *yapi.Directory, w io.Writer) error {
 				return err
 			}
 
-			users, err := directory.GetUsers(orgs.Result[0].ID, yapi.Parameters{"fields": []string{"name", "email"}, "group_id": []string{strconv.Itoa(groups.Result[i].ID)}, "per_page": []string{"1000"}})
+			users, err := directory.GetUsers(orgs.Result[n].ID, yapi.Parameters{"fields": []string{"name", "email"}, "group_id": []string{strconv.Itoa(groups.Result[i].ID)}, "per_page": []string{"1000"}})
 			if err != nil {
 				return fmt.Errorf("get users %w", err)
 			} else {
