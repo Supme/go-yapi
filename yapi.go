@@ -1,11 +1,13 @@
 package go_yapi
 
 import (
+	"bytes"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"golang.org/x/oauth2"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +16,8 @@ import (
 )
 
 const VersionAPI = "v6"
+
+var Debug = false
 
 // http://www.patorjk.com/software/taag/
 //      ___ ___         .__
@@ -77,7 +81,7 @@ func Patch(client *http.Client, url string, params Parameters, header map[string
 
 // Delete ...
 func Delete(client *http.Client, url string, params Parameters, header map[string]string) error {
-	return Request(client, http.MethodDelete, url, params, header, http.StatusOK, nil, nil)
+	return Request(client, http.MethodDelete, url, params, header, http.StatusNoContent, nil, nil)
 }
 
 func Request(client *http.Client, method, url string, params Parameters, header map[string]string, expectedStatus int, body io.Reader, v interface{}) error {
@@ -88,6 +92,7 @@ func Request(client *http.Client, method, url string, params Parameters, header 
 	for k := range header {
 		req.Header.Add(k, header[k])
 	}
+	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -100,6 +105,11 @@ func Request(client *http.Client, method, url string, params Parameters, header 
 	}
 
 	if resp.StatusCode != expectedStatus {
+		if Debug {
+			buf := &bytes.Buffer{}
+			buf.ReadFrom(resp.Body)
+			log.Printf(buf.String())
+		}
 		return errors.New(resp.Status)
 	}
 

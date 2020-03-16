@@ -16,14 +16,19 @@ import (
 // https://oauth.yandex.ru/
 func main() {
 	var clientID, clientSecret, tokFile string
+	var orgID int
 
 	clientID = os.Getenv("CLIENT_ID")
 	clientSecret = os.Getenv("CLIENT_SECRET")
-	flag.StringVar(&tokFile, "f", ".token", "Token file")
 
-	//flag.StringVar(&clientID, "id", "", "Client ID")
-	//flag.StringVar(&clientSecret, "secret", "", "Client secret")
-	//flag.Parse()
+	flag.StringVar(&tokFile, "f", ".token", "Token file")
+	flag.IntVar(&orgID, "o", 0, "Organization id")
+	flag.Parse()
+
+	if orgID == 0 {
+		fmt.Println("Organization ID required")
+		os.Exit(1)
+	}
 
 	if clientID == "" {
 		fmt.Println("Client ID required")
@@ -70,81 +75,113 @@ func main() {
 
 	directory := yapi.NewDirectory(client)
 
-	//newUser, err := directory.AddUser(
-	//	0,
-	//	yapi.DirectoryUser{
-	//		DepartmentID: 1,
-	//		Password:     "test100500",
-	//		Nickname:     "testapi",
-	//		Name: &yapi.DirectoryUserName{
-	//			First: "Test",
-	//			Last: "Api",
-	//		},
-	//	})
-	//if err != nil {
-	//	log.Print("add user ", err)
-	//}
-	//pretty("Add user", newUser)
-	//
-	//return
+	yapi.Debug = true
 
-	orgs, err := directory.GetOrganizations(yapi.DirectoryOrganizationAllParameters)
-	if err != nil {
-		log.Fatal("organizations ", err)
+	newUser := yapi.DirectoryUser{
+		DepartmentID: 1,
+		Password:     "test100500",
+		Nickname:     "testapi",
+		Name: &yapi.DirectoryUserName{
+			First: "Test",
+			Last:  "Api",
+		},
 	}
-	pretty("Organizations", orgs)
+	err = directory.CreateUser(orgID, &newUser)
+	if err != nil {
+		log.Print("Create user ", err)
+		os.Exit(1)
+	}
+	pretty("Create user", newUser)
 
-	if len(orgs.Result) > 0 {
-		rand.Seed(time.Now().Unix())
+	err = directory.AddAliasUser(orgID, newUser.ID, "test-api")
+	if err != nil {
+		log.Print("Add alias user ", err)
+	}
+	pretty("Add alias", `{"name":"test-api"}`)
 
-		users, err := directory.GetUsers(orgs.Result[0].ID, yapi.Parameters{"fields": []string{"id", "name", "gender", "nickname", "birthday"}, "per_page": []string{"3"}})
-		if err != nil {
-			log.Print("users ", err)
-		} else {
-			pretty("Users", users)
-		}
+	//orgs, err := directory.GetOrganizations(yapi.DirectoryOrganizationAllParameters)
+	//if err != nil {
+	//	log.Fatal("organizations ", err)
+	//}
+	//pretty("Organizations", orgs)
 
-		user, err := directory.GetUser(orgs.Result[0].ID, users.Result[rand.Intn(len(users.Result))].ID, yapi.DirectoryUserAllParameters)
-		if err != nil {
-			log.Print("user ", err)
-		} else {
-			pretty("User", user)
-		}
+	rand.Seed(time.Now().Unix())
 
-		groups, err := directory.GetGroups(orgs.Result[0].ID, yapi.DirectoryGroupAllParameters)
-		if err != nil {
-			log.Print("groups ", err)
-		} else {
-			pretty("Groups", groups)
-		}
+	users, err := directory.GetUsers(orgID, yapi.Parameters{"fields": []string{"id", "name", "gender", "nickname", "birthday"}, "per_page": []string{"3"}})
+	if err != nil {
+		log.Print("users ", err)
+	} else {
+		pretty("Users", users)
+	}
 
-		group, err := directory.GetGroup(orgs.Result[0].ID, groups.Result[rand.Intn(len(groups.Result))].ID, yapi.DirectoryGroupAllParameters)
-		if err != nil {
-			log.Print("group ", err)
-		} else {
-			pretty("Group", group)
-		}
+	user, err := directory.GetUser(orgID, users.Result[rand.Intn(len(users.Result))].ID, yapi.DirectoryUserAllParameters)
+	if err != nil {
+		log.Print("user ", err)
+	} else {
+		pretty("User", user)
+	}
 
-		deps, err := directory.GetDepartments(orgs.Result[0].ID, yapi.DirectoryDepartmentAllParameters)
-		if err != nil {
-			log.Print("deps ", err)
-		} else {
-			pretty("Departments", deps)
-		}
+	groups, err := directory.GetGroups(orgID, yapi.DirectoryGroupAllParameters)
+	if err != nil {
+		log.Print("groups ", err)
+	} else {
+		pretty("Groups", groups)
+	}
 
-		dep, err := directory.GetDepartment(orgs.Result[0].ID, deps.Result[rand.Intn(len(deps.Result))].ID, yapi.DirectoryDepartmentAllParameters)
-		if err != nil {
-			log.Print("dep ", err)
-		} else {
-			pretty("Department", dep)
-		}
+	group, err := directory.GetGroup(orgID, groups.Result[rand.Intn(len(groups.Result))].ID, yapi.DirectoryGroupAllParameters)
+	if err != nil {
+		log.Print("group ", err)
+	} else {
+		pretty("Group", group)
+	}
 
-		domains, err := directory.GetDomains(orgs.Result[0].ID, yapi.DirectoryDomainAllParameters)
-		if err != nil {
-			log.Print("domains ", err)
-		} else {
-			pretty("Domains", domains)
-		}
+	newDep, err := directory.CreateDepartment(orgID, yapi.DirectoryNewDepartment{ParentID: 1, HeadID: newUser.ID, Name: "New test department"})
+	if err != nil {
+		log.Print("dep ", err)
+	} else {
+		pretty("New department", newDep)
+	}
+
+	modDep, err := directory.ModifyDepartment(orgID, newDep.ID, yapi.DirectoryNewDepartment{Name: "Modify test department"})
+	if err != nil {
+		log.Print("dep ", err)
+	} else {
+		pretty("Modify department", modDep)
+	}
+
+	deps, err := directory.GetDepartments(orgID, yapi.DirectoryDepartmentAllParameters)
+	if err != nil {
+		log.Print("deps ", err)
+	} else {
+		pretty("Departments", deps)
+	}
+
+	dep, err := directory.GetDepartment(orgID, deps.Result[rand.Intn(len(deps.Result))].ID, yapi.DirectoryDepartmentAllParameters)
+	if err != nil {
+		log.Print("dep ", err)
+	} else {
+		pretty("Department", dep)
+	}
+
+	err = directory.DeleteDepartment(orgID, newDep.ID)
+	if err != nil {
+		log.Print("dep ", err)
+	}
+	pretty("Delete department", "Success")
+
+	modifyUser := yapi.DirectoryUser{IsDismissed: true}
+	err = directory.ModifyUser(orgID, newUser.ID, &modifyUser)
+	if err != nil {
+		log.Print("Modify user ", err)
+		os.Exit(1)
+	}
+	pretty("Modify user", modifyUser)
+
+	domains, err := directory.GetDomains(orgID, yapi.DirectoryDomainAllParameters)
+	if err != nil {
+		log.Print("domains ", err)
+	} else {
+		pretty("Domains", domains)
 	}
 }
 

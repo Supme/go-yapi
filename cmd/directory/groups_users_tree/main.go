@@ -9,15 +9,21 @@ import (
 	"golang.org/x/oauth2"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
+	"sync"
+	"time"
 )
 
 func main() {
-	var clientID, clientSecret, tokFile string
+	var clientID, clientSecret, tokFile, webPort string
+	var startWeb bool
 
 	flag.StringVar(&clientID, "i", "", "Client ID")
 	flag.StringVar(&clientSecret, "s", "", "Client secret")
+	flag.StringVar(&webPort, "p", "8080", "Listen port")
+	flag.BoolVar(&startWeb, "w", false, "Start web server")
 	flag.StringVar(&tokFile, "f", ".token", "Token file")
 	flag.Parse()
 
@@ -68,14 +74,63 @@ func main() {
 
 	client := conf.Client(ctx, tok)
 
-	buf := &bytes.Buffer{}
-	err = printTable(yapi.NewDirectory(client), buf)
-	if err != nil {
-		log.Fatal(err)
+	if startWeb {
+		fmt.Println("Start web server on port", webPort)
+		// ToDo
+		log.Fatal(http.ListenAndServe(":"+webPort, handler(yapi.NewDirectory(client))))
+	} else {
+		buf := &bytes.Buffer{}
+		err = printTable(yapi.NewDirectory(client), buf)
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = io.Copy(os.Stdout, buf)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	_, err = io.Copy(os.Stdout, buf)
+}
+
+var stor = storage{
+	data: "Initialize storage",
+}
+
+type storage struct {
+	data string
+	sync.RWMutex
+}
+
+func (s *storage) update(directory *yapi.Directory) error {
+	buf := &bytes.Buffer{}
+	err := printTable(directory, buf)
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	s.Lock()
+	defer s.Unlock()
+	s.data = buf.String()
+	return nil
+}
+
+func handler(directory *yapi.Directory) http.HandlerFunc {
+	go func(directory *yapi.Directory) {
+		for {
+			log.Print("start update storage")
+			err := stor.update(directory)
+			if err != nil {
+				log.Print(err)
+				continue
+			}
+			log.Print("storage updated")
+			time.Sleep(time.Minute * 10)
+		}
+	}(directory)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		stor.RLock()
+		defer stor.RUnlock()
+		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
+		w.Write([]byte(stor.data))
 	}
 }
 

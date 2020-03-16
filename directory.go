@@ -30,34 +30,35 @@ func NewDirectory(client *http.Client) *Directory {
 //                 \/     \/           \/
 
 type DirectoryUser struct {
-	IsRobot      bool                      `json:"is_robot,omitempty"`
-	ExternalID   interface{}               `json:"external_id,omitempty"`
-	Position     string                    `json:"position,omitempty"`
-	Departments  []DirectoryUserDepartment `json:"departments,omitempty"`
-	OrgID        int                       `json:"org_id,omitempty"`
-	Gender       string                    `json:"gender,omitempty"`
-	Created      string                    `json:"created,omitempty"`
-	Name         *DirectoryUserName        `json:"name,omitempty"`
-	About        string                    `json:"about,omitempty"`
-	Nickname     string                    `json:"nickname,omitempty"`
-	Groups       []DirectoryUserGroup      `json:"groups,omitempty"`
-	IsAdmin      bool                      `json:"is_admin,omitempty"`
-	Birthday     string                    `json:"birthday,omitempty"`
-	DepartmentID int                       `json:"department_id,omitempty"`
-	Email        string                    `json:"email,omitempty"`
-	Department   *DirectoryUserDepartment  `json:"department,omitempty"`
-	Contacts     []DirectoryUserContact    `json:"contacts,omitempty"`
-	Aliases      []string                  `json:"aliases,omitempty"`
-	ID           int                       `json:"id,omitempty"`
-	IsDismissed  bool                      `json:"is_dismissed,omitempty"`
-	Password     string                    `json:"password,omitempty"`
+	IsRobot                bool                      `json:"is_robot,omitempty"`
+	ExternalID             interface{}               `json:"external_id,omitempty"`
+	Position               string                    `json:"position,omitempty"`
+	Departments            []DirectoryUserDepartment `json:"departments,omitempty"`
+	OrgID                  int                       `json:"org_id,omitempty"`
+	Gender                 string                    `json:"gender,omitempty"`
+	Created                string                    `json:"created,omitempty"`
+	Name                   *DirectoryUserName        `json:"name,omitempty"`
+	About                  string                    `json:"about,omitempty"`
+	Nickname               string                    `json:"nickname,omitempty"`
+	Groups                 []DirectoryUserGroup      `json:"groups,omitempty"`
+	IsAdmin                bool                      `json:"is_admin,omitempty"`
+	Birthday               string                    `json:"birthday,omitempty"`
+	DepartmentID           int                       `json:"department_id,omitempty"`
+	Email                  string                    `json:"email,omitempty"`
+	Department             *DirectoryUserDepartment  `json:"department,omitempty"`
+	Contacts               []DirectoryUserContact    `json:"contacts,omitempty"`
+	Aliases                []string                  `json:"aliases,omitempty"`
+	ID                     int                       `json:"id,omitempty"`
+	IsDismissed            bool                      `json:"is_dismissed,omitempty"`
+	Password               string                    `json:"password,omitempty"`
+	PasswordChangeRequired string                    `json:"password_change_required,omitempty"`
 }
 
-type directoryUserSliceID struct {
+type directoryID struct {
 	ID int `json:"id"`
 }
-type DirectoryUserDepartment directoryUserSliceID
-type DirectoryUserGroup directoryUserSliceID
+type DirectoryUserDepartment directoryID
+type DirectoryUserGroup directoryID
 
 type DirectoryUserName struct {
 	First  string `json:"first,omitempty"`
@@ -143,7 +144,7 @@ func (d Directory) CreateUser(orgID int, user *DirectoryUser) error {
 		return err
 	}
 
-	err = Post(
+	return Post(
 		d.client,
 		directoryURL+"/users/",
 		nil,
@@ -151,8 +152,6 @@ func (d Directory) CreateUser(orgID int, user *DirectoryUser) error {
 		bytes.NewReader(j),
 		&user,
 	)
-
-	return err
 }
 
 func (d Directory) ModifyUser(orgID, userID int, user *DirectoryUser) error {
@@ -174,7 +173,7 @@ func (d Directory) ModifyUser(orgID, userID int, user *DirectoryUser) error {
 }
 
 func (d Directory) AddAliasUser(orgID, userID int, alias string) error {
-	return Patch(
+	return Post(
 		d.client,
 		directoryURL+"/users/"+strconv.Itoa(userID)+"/aliases/",
 		nil,
@@ -203,7 +202,7 @@ type DirectoryDepartment struct {
 	Parent       DirectoryDepartmentParent   `json:"parent,omitempty"`
 	Description  string                      `json:"description,omitempty"`
 	MembersCount int                         `json:"members_count,omitempty"`
-	Head         int                         `json:"head,omitempty"`
+	Head         directoryID                 `json:"head,omitempty"`
 }
 
 type DirectoryDepartmentParent struct {
@@ -276,45 +275,45 @@ func (d Directory) GetDepartment(orgID, depID int, params Parameters) (Directory
 	return department, err
 }
 
+type DirectoryNewDepartment struct {
+	ParentID    int    `json:"parent_id,omitempty"`
+	HeadID      int    `json:"head_id,omitempty"`
+	Label       string `json:"label,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
 // CreateDepartment ...
-func (d Directory) CreateDepartment(orgID, parentID, headID int, name, label, description *string) (DirectoryDepartment, error) {
+func (d Directory) CreateDepartment(orgID int, newDepartment DirectoryNewDepartment) (DirectoryDepartment, error) {
 	var department DirectoryDepartment
-	err := Post(
+	j, err := json.Marshal(newDepartment)
+	if err != nil {
+		return department, err
+	}
+	err = Post(
 		d.client,
 		directoryURL+"/departments/",
 		nil,
 		headerOrgID(orgID),
-		strings.NewReader(
-			`{`+
-				`"parent_id": `+jsonParam(parentID)+
-				`, "head_id": `+jsonParam(headID)+
-				`, "label": `+jsonParam(label)+
-				`, "name": `+jsonParam(name)+
-				`, "description": `+jsonParam(description)+
-				`}`,
-		),
+		bytes.NewReader(j),
 		&department,
 	)
 	return department, err
 }
 
-// ChangeDepartment ...
-func (d Directory) ChangeDepartment(orgID, depID, parentID, headID int, name, label, description *string) (DirectoryDepartment, error) {
+// ModifyDepartment ...
+func (d Directory) ModifyDepartment(orgID, depID int, newDepartment DirectoryNewDepartment) (DirectoryDepartment, error) {
 	var department DirectoryDepartment
-	err := Patch(
+	j, err := json.Marshal(newDepartment)
+	if err != nil {
+		return department, err
+	}
+	err = Patch(
 		d.client,
 		directoryURL+"/departments/"+strconv.Itoa(depID)+"/",
 		nil,
 		headerOrgID(orgID),
-		strings.NewReader(
-			`{`+
-				`"parent_id": `+jsonParam(parentID)+
-				`, "head_id": `+jsonParam(headID)+
-				`, "label": `+jsonParam(label)+
-				`, "name": `+jsonParam(name)+
-				`, "description": `+jsonParam(description)+
-				`}`,
-		),
+		bytes.NewReader(j),
 		&department,
 	)
 	return department, err
