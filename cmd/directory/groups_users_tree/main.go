@@ -19,9 +19,11 @@ import (
 func main() {
 	var clientID, clientSecret, tokFile, webPort string
 	var startWeb bool
+	var orgID int
 
 	flag.StringVar(&clientID, "i", "", "Client ID")
 	flag.StringVar(&clientSecret, "s", "", "Client secret")
+	flag.IntVar(&orgID, "o", 0, "Organization ID (default all")
 	flag.StringVar(&webPort, "p", "8080", "Listen port")
 	flag.BoolVar(&startWeb, "w", false, "Start web server")
 	flag.StringVar(&tokFile, "f", ".token", "Token file")
@@ -77,10 +79,10 @@ func main() {
 	if startWeb {
 		fmt.Println("Start web server on port", webPort)
 		// ToDo
-		log.Fatal(http.ListenAndServe(":"+webPort, handler(yapi.NewDirectory(client))))
+		log.Fatal(http.ListenAndServe(":"+webPort, handler(yapi.NewDirectory(client), orgID)))
 	} else {
 		buf := &bytes.Buffer{}
-		err = printTable(yapi.NewDirectory(client), buf)
+		err = printTable(yapi.NewDirectory(client), orgID, buf)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -100,9 +102,9 @@ type storage struct {
 	sync.RWMutex
 }
 
-func (s *storage) update(directory *yapi.Directory) error {
+func (s *storage) update(directory *yapi.Directory, orgID int) error {
 	buf := &bytes.Buffer{}
-	err := printTable(directory, buf)
+	err := printTable(directory, orgID, buf)
 	if err != nil {
 		return err
 	}
@@ -112,11 +114,11 @@ func (s *storage) update(directory *yapi.Directory) error {
 	return nil
 }
 
-func handler(directory *yapi.Directory) http.HandlerFunc {
+func handler(directory *yapi.Directory, orgID int) http.HandlerFunc {
 	go func(directory *yapi.Directory) {
 		for {
 			log.Print("start update storage")
-			err := stor.update(directory)
+			err := stor.update(directory, orgID)
 			if err != nil {
 				log.Print(err)
 				continue
@@ -134,10 +136,19 @@ func handler(directory *yapi.Directory) http.HandlerFunc {
 	}
 }
 
-func printTable(directory *yapi.Directory, w io.Writer) error {
+func printTable(directory *yapi.Directory, orgID int, w io.Writer) error {
 	orgs, err := directory.GetOrganizations(nil)
 	if err != nil {
 		log.Fatal("organizations ", err)
+	}
+
+	if orgID != 0 {
+		for n := range orgs.Result {
+			if orgs.Result[n].ID == orgID {
+				orgs.Result = orgs.Result[n : n+1]
+				break
+			}
+		}
 	}
 
 	for n := range orgs.Result {
@@ -145,7 +156,7 @@ func printTable(directory *yapi.Directory, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(w, "%-15s %37s %15s\n", "│       ", "Organisation ID: "+strconv.Itoa(orgs.Result[n].ID), "       │")
+		_, err = fmt.Fprintf(w, "%-15s %37s %15s\n", "│       ", "Organisation ID: "+strconv.Itoa(orgs.Result[n].ID)+" (name: \""+orgs.Result[n].Name+"\")", "       │")
 		if err != nil {
 			return err
 		}
