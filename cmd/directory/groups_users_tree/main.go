@@ -10,7 +10,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -78,7 +80,6 @@ func main() {
 
 	if startWeb {
 		fmt.Println("Start web server on port", webPort)
-		// ToDo
 		log.Fatal(http.ListenAndServe(":"+webPort, handler(yapi.NewDirectory(client), orgID)))
 	} else {
 		buf := &bytes.Buffer{}
@@ -136,6 +137,12 @@ func handler(directory *yapi.Directory, orgID int) http.HandlerFunc {
 	}
 }
 
+type SortByEmail []yapi.DirectoryUser
+
+func (e SortByEmail) Len() int           { return len(e) }
+func (e SortByEmail) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
+func (e SortByEmail) Less(i, j int) bool { return e[i].Email < e[j].Email }
+
 func printTable(directory *yapi.Directory, orgID int, w io.Writer) error {
 	orgs, err := directory.GetOrganizations(nil)
 	if err != nil {
@@ -188,6 +195,7 @@ func printTable(directory *yapi.Directory, orgID int, w io.Writer) error {
 			if err != nil {
 				return fmt.Errorf("get users %w", err)
 			} else {
+				sort.Sort(SortByEmail(users.Result))
 				for _, u := range users.Result {
 					_, err = fmt.Fprintf(w, "│ %-29s │ %-15s │ %-15s │\n", u.Email, u.Name.Last, u.Name.First)
 					if err != nil {
