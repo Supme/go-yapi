@@ -4,6 +4,7 @@ package go_yapi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -342,75 +343,36 @@ type DirectoryGroup struct {
 	ExternalID string `json:"external_id,omitempty"`
 	ID         int    `json:"id,omitempty"`
 	Members    []struct {
-		Type   string `json:"type"` // <user|group|department>
-		Object struct {
-			ID int `json:"id"`
-		} `json:"object"`
+		Type   string      `json:"type"` // <user|group|department>
+		Object directoryID `json:"object"`
 	} `json:"members,omitempty"`
-	Label   string `json:"label,omitempty"`
-	Created string `json:"created,omitempty"`
-	Type    string `json:"type,omitempty"`
-	Admins  []struct {
-		Aliases      []string `json:"aliases"`
-		ID           int      `json:"id"`
-		Nickname     string   `json:"nickname"`
-		DepartmentID int      `json:"department_id"`
-		IsDismissed  bool     `json:"is_dismissed"`
-		Position     string   `json:"position"`
-		Groups       []struct {
-			ID int `json:"id"`
-		} `json:"groups,omitempty"`
-		IsAdmin    bool   `json:"is_admin"`
-		Birthday   string `json:"birthday"`
-		Email      string `json:"email"`
-		ExternalID string `json:"external_id"`
-		Gender     string `json:"gender"`
-		Contacts   []struct {
-			Value     string `json:"value"`
-			Type      string `json:"type"`
-			Main      bool   `json:"main"`
-			Alias     bool   `json:"alias"`
-			Synthetic bool   `json:"synthetic"`
-		} `json:"contacts"`
-		Name struct {
-			First  string `json:"first"`
-			Last   string `json:"last"`
-			Middle string `json:"middle"`
-		} `json:"name"`
-		About string `json:"about"`
-	} `json:"admins,omitempty"`
-	Author struct {
-		Aliases      []string `json:"aliases"`
-		ID           int      `json:"id"`
-		Nickname     string   `json:"nickname"`
-		DepartmentID int      `json:"department_id"`
-		IsDismissed  bool     `json:"is_dismissed"`
-		Position     string   `json:"position"`
-		Groups       []struct {
-			ID int `json:"id"`
-		} `json:"groups"`
-		IsAdmin    bool   `json:"is_admin"`
-		Birthday   string `json:"birthday"`
-		Email      string `json:"email"`
-		ExternalID string `json:"external_id"`
-		Gender     string `json:"gender"`
-		Contacts   []struct {
-			Value     string `json:"value"`
-			Type      string `json:"type"`
-			Main      bool   `json:"main"`
-			Alias     bool   `json:"alias"`
-			Synthetic bool   `json:"synthetic"`
-		} `json:"contacts"`
-		Name struct {
-			First  string `json:"first"`
-			Last   string `json:"last"`
-			Middle string `json:"middle"`
-		} `json:"name"`
-		About string `json:"about"`
-	} `json:"author,omitempty"`
-	Description  string `json:"description,omitempty"`
-	MembersCount int    `json:"members_count,omitempty"`
-	MemberOf     []int  `json:"member_of,omitempty"`
+	Label        string               `json:"label,omitempty"`
+	Created      string               `json:"created,omitempty"`
+	Type         string               `json:"type,omitempty"`
+	Admins       []DirectoryGroupUser `json:"admins,omitempty"`
+	Author       DirectoryGroupUser   `json:"author,omitempty"`
+	Description  string               `json:"description,omitempty"`
+	MembersCount int                  `json:"members_count,omitempty"`
+	MemberOf     []int                `json:"member_of,omitempty"`
+}
+
+type DirectoryGroupUser struct {
+	Aliases      []string               `json:"aliases,omitempty"`
+	ID           int                    `json:"id"`
+	Type         string                 `json:"type,omitempty"`
+	Nickname     string                 `json:"nickname,omitempty"`
+	DepartmentID int                    `json:"department_id,omitempty"`
+	IsDismissed  bool                   `json:"is_dismissed,omitempty"`
+	Position     string                 `json:"position,omitempty"`
+	Groups       []DirectoryUserGroup   `json:"groups,omitempty"`
+	IsAdmin      bool                   `json:"is_admin,omitempty"`
+	Birthday     string                 `json:"birthday,omitempty"`
+	Email        string                 `json:"email,omitempty"`
+	ExternalID   string                 `json:"external_id,omitempty"`
+	Gender       string                 `json:"gender,omitempty"`
+	Contacts     []DirectoryUserContact `json:"contacts,omitempty"`
+	Name         DirectoryUserName      `json:"name,omitempty"`
+	About        string                 `json:"about,omitempty"`
 }
 
 type DirectoryGroups struct {
@@ -430,16 +392,12 @@ type DirectoryGroups struct {
 type DirectoryGroupMember struct {
 	Type   string `json:"type"`
 	Object struct {
-		DepartmentID int    `json:"department_id"`
-		ID           int    `json:"id"`
-		Nickname     string `json:"nickname"`
-		Email        string `json:"email"`
-		Gender       string `json:"gender"`
-		Name         struct {
-			First  string `json:"first"`
-			Last   string `json:"last"`
-			Middle string `json:"middle"`
-		} `json:"name"`
+		DepartmentID int               `json:"department_id"`
+		ID           int               `json:"id"`
+		Nickname     string            `json:"nickname"`
+		Email        string            `json:"email"`
+		Gender       string            `json:"gender"`
+		Name         DirectoryUserName `json:"name"`
 	} `json:"object"`
 }
 
@@ -483,6 +441,21 @@ func (d Directory) GetGroup(orgID, groupID int, params Parameters) (DirectoryGro
 		&group,
 	)
 	return group, err
+}
+
+// CreateGroup ToDo
+func (d Directory) CreateGroup(orgID int) error {
+	return errors.New("not finish")
+}
+
+// ModifyGroup ToDo
+func (d Directory) ModifyGroup(orgID int) error {
+	return errors.New("not finish")
+}
+
+// DeleteGroup ToDo
+func (d Directory) DeleteGroup(orgID int) error {
+	return errors.New("not finish")
 }
 
 //    ________                        .__
