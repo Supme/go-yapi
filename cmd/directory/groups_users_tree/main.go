@@ -197,7 +197,7 @@ func printTable(directory *yapi.Directory, orgID int, w io.Writer) error {
 			} else {
 				sort.Sort(SortByEmail(users.Result))
 				for _, u := range users.Result {
-					_, err = fmt.Fprintf(w, "│ %-29s │ %-15s │ %-15s │\n", u.Email, u.Name.Last, u.Name.First)
+					_, err = fmt.Fprintf(w, "│ %-29s │ %-15s │ %-15s │\n", u.Email, u.Name.First, u.Name.Last)
 					if err != nil {
 						return err
 					}
