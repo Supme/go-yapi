@@ -146,7 +146,7 @@ func (e SortByEmail) Less(i, j int) bool { return e[i].Email < e[j].Email }
 func printTable(directory *yapi.Directory, orgID int, w io.Writer) error {
 	orgs, err := directory.GetOrganizations(nil)
 	if err != nil {
-		log.Fatal("organizations ", err)
+		return fmt.Errorf("get organizations %w", err)
 	}
 
 	if orgID != 0 {
